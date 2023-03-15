@@ -148,7 +148,7 @@ class BTCPServerSocket(BTCPSocket):
         return
 
 
-    def _closed_segment_received(self):
+    def _closed_segment_received(self, segment):
         """Helper method handling received segment in CLOSED state
         """
         logger.debug("_closed_segment_received called")
