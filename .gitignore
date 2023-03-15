@@ -1,3 +1,7 @@
 output.file
 testframework-output.file
 large_input.py
+
+
+src/btcp/__pycache__
+src/__pycache__

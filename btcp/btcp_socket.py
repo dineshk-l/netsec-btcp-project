@@ -20,15 +20,15 @@ class BTCPStates(IntEnum):
     Feel free to implement your state machine in a different way, without
     using such an enum.
     """
-    CLOSED      = 0
-    ACCEPTING   = 1
-    SYN_SENT    = 2
-    SYN_RCVD    = 3
-    _           = 4 # There's an obvious state that goes here. Give it a name.
-    FIN_SENT    = 5
-    CLOSING     = 6
-    __          = 7 # If you need more states, extend the Enum like this.
-    raise NotImplementedError("Check btcp_socket.py's BTCPStates enum. We left out some states you will need.")
+    CLOSED = 0
+    ACCEPTING = 1
+    SYN_SENT = 2
+    SYN_RCVD = 3
+    ESTABLISHED = 4  # There's an obvious state that goes here. Give it a name.
+    FIN_SENT = 5
+    CLOSING = 6
+    # __          = 7 # If you need more states, extend the Enum like this.
+    # raise NotImplementedError("Check btcp_socket.py's BTCPStates enum. We left out some states you will need.")
 
 
 class BTCPSignals(IntEnum):
@@ -48,6 +48,7 @@ class BTCPSocket:
     """Base class for bTCP client and server sockets. Contains static helper
     methods that will definitely be useful for both sending and receiving side.
     """
+
     def __init__(self, window, timeout):
         logger.debug("__init__ called")
         self._window = window
@@ -55,7 +56,6 @@ class BTCPSocket:
         self._state = BTCPStates.CLOSED
         logger.debug("Socket initialized with window %i and timeout %i",
                      self._window, self._timeout)
-
 
     @staticmethod
     def in_cksum(segment):
@@ -69,8 +69,8 @@ class BTCPSocket:
         then the resulting checksum should be put in its place.
         """
         logger.debug("in_cksum() called")
-        raise NotImplementedError("No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
-
+        raise NotImplementedError(
+            "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
 
     @staticmethod
     def verify_checksum(segment):
@@ -79,9 +79,9 @@ class BTCPSocket:
         Mind that you change *what* signals that to the correct value(s).
         """
         logger.debug("verify_cksum() called")
-        raise NotImplementedError("No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
+        raise NotImplementedError(
+            "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
         return BTCPSocket.in_cksum(segment) == 0xABCD
-
 
     @staticmethod
     def build_segment_header(seqnum, acknum,
@@ -113,7 +113,6 @@ class BTCPSocket:
         return struct.pack("!HHBBHH",
                            seqnum, acknum, flag_byte, window, length, checksum)
 
-
     @staticmethod
     def unpack_segment_header(header):
         """Unpack the individual bTCP header field values from the header.
@@ -123,5 +122,6 @@ class BTCPSocket:
         than make a separate method for every individual field.
         """
         logger.debug("unpack_segment_header() called")
-        raise NotImplementedError("No implementation of unpack_segment_header present. Read the comments & code of btcp_socket.py. You should really implement the packing / unpacking of the header into field values before doing anything else!")
+        raise NotImplementedError(
+            "No implementation of unpack_segment_header present. Read the comments & code of btcp_socket.py. You should really implement the packing / unpacking of the header into field values before doing anything else!")
         logger.debug("unpack_segment_header() done")
