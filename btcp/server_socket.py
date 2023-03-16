@@ -10,6 +10,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# NOTE TIMER CAN HAVE ISSUES AS MENTIONED IN VERSION 1.3
+
 
 class BTCPServerSocket(BTCPSocket):
     """bTCP server socket
@@ -156,8 +158,13 @@ class BTCPServerSocket(BTCPSocket):
                        "rudimentary implementation never leaves the CLOSED "
                        "state.")
         # Get length from header. Change this to a proper segment header unpack
-        # after implementing BTCPSocket.unpack_segment_header in btcp_socket.py
-        datalen, = struct.unpack("!H", segment[6:8])
+        # after implementing BTCPSocket.unpack_segment_header in btcp_socket.p
+        header = segment[:10]  # because the header is 10 bytes
+
+        (seqnum, acknum, flag_byte, window, datalen,
+         checksum) = BTCPSocket.unpack_segment_header(header)
+
+        # datalen, = struct.unpack("!H", segment[6:8])
         # Slice data from incoming segment.
         chunk = segment[HEADER_SIZE:HEADER_SIZE + datalen]
         # Pass data into receive buffer so that the application thread can
