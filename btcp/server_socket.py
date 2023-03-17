@@ -49,7 +49,7 @@ class BTCPServerSocket(BTCPSocket):
         initialized, but do *not* call accept from here.
         """
         logger.debug("__init__() called.")
-        super().__init__(window, timeout)
+        super().__init__(window, timeout)  # also has state
         self._lossy_layer = LossyLayer(
             self, SERVER_IP, SERVER_PORT, CLIENT_IP, CLIENT_PORT)
 
@@ -121,8 +121,8 @@ class BTCPServerSocket(BTCPSocket):
         """
         logger.debug("lossy_layer_segment_received called")
         logger.debug(segment)
-        raise NotImplementedError(
-            "Only rudimentary implementation of lossy_layer_segment_received present. Read the comments & code of server_socket.py, then remove the NotImplementedError.")
+        # raise NotImplementedError(
+        #     "Only rudimentary implementation of lossy_layer_segment_received present. Read the comments & code of server_socket.py, then remove the NotImplementedError.")
 
         # match ... case is available since Python 3.10
         # Note, this is *not* the same as a "switch" statement from other
@@ -132,8 +132,10 @@ class BTCPServerSocket(BTCPSocket):
                 self._closed_segment_received(segment)
             case BTCPStates.CLOSING:
                 self._closing_segment_received(segment)
+            case BTCPStates.ESTABLISHED:
+                self._established_segment_received(segment)
             case _:
-                self._other_segment_received
+                self._other_segment_received(segment)
 
         # If you don't have Python 3.10, the following if ... elif ... else
         # is an equivalent option.
@@ -146,7 +148,7 @@ class BTCPServerSocket(BTCPSocket):
         #                self._state)
         #    self._other_segment_received
 
-        self._expire_timers()
+        # self._expire_timers()  # reset timers?
         return
 
     def _closed_segment_received(self, segment):
@@ -200,6 +202,36 @@ class BTCPServerSocket(BTCPSocket):
         logger.info("Segment received in %s state",
                     self._state)
 
+    def _established_segment_received(self, segment):
+        """Helper method handling received segment in an established state
+
+        Currently solely for demonstration purposes.
+        """
+        logger.debug("_established_segment_received called")
+        logger.info("Segment received in %s state",
+                    self._state)
+        header = segment[:10]  # because the header is 10 bytes
+
+        (seqnum, acknum, flag_byte, window, datalen,
+         checksum) = BTCPSocket.unpack_segment_header(header)
+
+        # datalen, = struct.unpack("!H", segment[6:8])
+        # Slice data from incoming segment.
+        chunk = segment[HEADER_SIZE:HEADER_SIZE + datalen]
+        # Pass data into receive buffer so that the application thread can
+        # retrieve it.
+        try:
+            self._recvbuf.put_nowait(chunk)
+        except queue.Full:
+            # Data gets dropped if the receive buffer is full. You need to
+            # ensure this doesn't happen by using window sizes and not
+            # acknowledging dropped data.
+            # Initially, while still developing other features,
+            # you can also just set the size limitation on the Queue
+            # much higher, or remove it altogether.
+            logger.critical("Data got dropped!")
+            logger.debug(chunk)
+
     def lossy_layer_tick(self):
         """Called by the lossy layer whenever no segment has arrived for
         TIMER_TICK milliseconds. Defaults to 100ms, can be set in constants.py.
@@ -222,10 +254,12 @@ class BTCPServerSocket(BTCPSocket):
         lossy_layer_segment_received or lossy_layer_tick.
         """
         logger.debug("lossy_layer_tick called")
-        self._start_example_timer()
-        self._expire_timers()
-        raise NotImplementedError(
-            "No implementation of lossy_layer_tick present. Read the comments & code of server_socket.py.")
+
+        # self._start_example_timer()
+        # self._expire_timers()
+
+        # raise NotImplementedError(
+        #     "No implementation of lossy_layer_tick present. Read the comments & code of server_socket.py.")
 
     # The following two functions show you how you could implement a (fairly
     # inaccurate) but easy-to-use timer.
@@ -233,23 +267,23 @@ class BTCPServerSocket(BTCPSocket):
     # and lossy_layer_segment_received, for reasons explained in
     # lossy_layer_tick.
 
-    def _start_example_timer(self):
-        if not self._example_timer:
-            logger.debug("Starting example timer.")
-            # Time in *nano*seconds, not milli- or microseconds.
-            # Using a monotonic clock ensures independence of weird stuff
-            # like leap seconds and timezone changes.
-            self._example_timer = time.monotonic_ns()
-        else:
-            logger.debug("Example timer already running.")
+    # def _start_example_timer(self):
+    #     if not self._example_timer:
+    #         logger.debug("Starting example timer.")
+    #         # Time in *nano*seconds, not milli- or microseconds.
+    #         # Using a monotonic clock ensures independence of weird stuff
+    #         # like leap seconds and timezone changes.
+    #         self._example_timer = time.monotonic_ns()
+    #     else:
+    #         logger.debug("Example timer already running.")
 
-    def _expire_timers(self):
-        curtime = time.monotonic_ns()
-        if curtime - self._example_timer > self._timeout * 1_000_000:
-            logger.debug("Example timer elapsed.")
-            self._example_timer = None
-        else:
-            logger.debug("Example timer not yet elapsed.")
+    # def _expire_timers(self):
+    #     curtime = time.monotonic_ns()
+    #     if curtime - self._example_timer > self._timeout * 1_000_000:
+    #         logger.debug("Example timer elapsed.")
+    #         self._example_timer = None
+    #     else:
+    #         logger.debug("Example timer not yet elapsed.")
 
     ###########################################################################
     ### You're also building the socket API for the applications to use.    ###
@@ -301,12 +335,26 @@ class BTCPServerSocket(BTCPSocket):
         We do not think you will need more advanced thread synchronization in
         this project.
         """
+        self._state = BTCPStates.ESTABLISHED
+
+        # while not self._state != BTCPStates.ESTABLISHED:
+        #     # Check for incoming packets in the UDP lossy layer
+
+        #     if incoming_data is not None and incoming_data == b"CONNECT":
+        #         self.connected = True
+        #         self.connection_queue.put(incoming_address)
+
+        #     # Sleep for a short time to avoid wasting CPU time
+        #     time.sleep(0.01)
+
+        # # Return the new connection
+        # return TCPSocketConnection(self.udp_socket, self.connection_queue.get())
 
         # Make connect and accept move into the right state without sending anything, and start the server before the client
 
         logger.debug("accept called")
-        raise NotImplementedError(
-            "No implementation of accept present. Read the comments & code of server_socket.py.")
+        # raise NotImplementedError(
+        #     "No implementation of accept present. Read the comments & code of server_socket.py.")
 
     def recv(self):
         """Return data that was received from the client to the application in
@@ -340,8 +388,8 @@ class BTCPServerSocket(BTCPSocket):
         Again, you should feel free to deviate from how this usually works.
         """
         logger.debug("recv called")
-        raise NotImplementedError(
-            "Only rudimentary implementation of recv present. Read the comments & code of server_socket.py, then remove the NotImplementedError.")
+        # raise NotImplementedError(
+        #     "Only rudimentary implementation of recv present. Read the comments & code of server_socket.py, then remove the NotImplementedError.")
 
         # Rudimentary example implementation:
         # Empty the queue in a loop, reading into a larger bytearray object.

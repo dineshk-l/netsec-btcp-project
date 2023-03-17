@@ -1,9 +1,10 @@
-from btcp.btcp_socket import BTCPSocket, BTCPStates
+from btcp.btcp_socket import BTCPSocket, BTCPStates, BTCPSignals
 from btcp.lossy_layer import LossyLayer
 from btcp.constants import *
 
 import queue
 import logging
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ class BTCPClientSocket(BTCPSocket):
 
         # The data buffer used by send() to send data from the application
         # thread into the network thread. Bounded in size.
-        self._sendbuf = queue.Queue(maxsize=1000)
+        self._sendbuf = queue.Queue(maxsize=1000)  # in flight?
+        self._signalbuf = queue.Queue(maxsize=1)  # in flight?
         logger.info("Socket initialized with sendbuf size 1000")
 
     ###########################################################################
@@ -76,7 +78,8 @@ class BTCPClientSocket(BTCPSocket):
 
         Remember, we expect you to implement this *as a state machine!*
         You have quite a bit of freedom in how you do this, but we at least
-        expect you to *keep track of the state the protocol is in*,
+        expect you to:
+        *keep track of the state the protocol is in*,
         *perform the appropriate state transitions based on events*, and
         *alter behaviour based on that state*.
 
@@ -139,20 +142,21 @@ class BTCPClientSocket(BTCPSocket):
         # and storing the segments for retransmission somewhere.
         try:
             while True:
-                logger.debug("Getting chunk from buffer.")
-                chunk = self._sendbuf.get_nowait()
-                datalen = len(chunk)
-                logger.debug("Got chunk with lenght %i:",
-                             datalen)
-                logger.debug(chunk)
-                if datalen < PAYLOAD_SIZE:
-                    logger.debug("Padding chunk to full size")
-                    chunk = chunk + b'\x00' * (PAYLOAD_SIZE - datalen)
-                logger.debug("Building segment from chunk.")
-                segment = (self.build_segment_header(0, 0, length=datalen)
-                           + chunk)
-                logger.info("Sending segment.")
-                self._lossy_layer.send_segment(segment)
+                if (self._state == BTCPStates.ESTABLISHED):  # note todo added
+                    logger.debug("Getting chunk from buffer.")
+                    chunk = self._sendbuf.get_nowait()
+                    datalen = len(chunk)
+                    logger.debug("Got chunk with lenght %i:",
+                                 datalen)
+                    logger.debug(chunk)
+                    if datalen < PAYLOAD_SIZE:
+                        logger.debug("Padding chunk to full size")
+                        chunk = chunk + b'\x00' * (PAYLOAD_SIZE - datalen)
+                    logger.debug("Building segment from chunk.")
+                    segment = (self.build_segment_header(0, 0, length=datalen)
+                               + chunk)
+                    logger.info("Sending segment.")
+                    self._lossy_layer.send_segment(segment)
         except queue.Empty:
             logger.info("No (more) data was available for sending right now.")
 
@@ -205,9 +209,20 @@ class BTCPClientSocket(BTCPSocket):
         We do not think you will need more advanced thread synchronization in
         this project.
         """
+
+        # try:
+
+        logger.debug("Trying to connect")
+        # self.send(self,BTCPSignals.CONNECT)
+
+        self._state = BTCPStates.ESTABLISHED
+
+        # except aborted:
+        #     logger.info("No (more) data was available for sending right now.")
+
         logger.debug("connect called")
-        raise NotImplementedError(
-            "No implementation of connect present. Read the comments & code of client_socket.py.")
+        # raise NotImplementedError(
+        #     "No implementation of connect present. Read the comments & code of client_socket.py.")
 
     def send(self, data):
         """Send data originating from the application in a reliable way to the
@@ -278,8 +293,8 @@ class BTCPClientSocket(BTCPSocket):
         more advanced thread synchronization in this project.
         """
         logger.debug("shutdown called")
-        raise NotImplementedError(
-            "No implementation of shutdown present. Read the comments & code of client_socket.py.")
+        # raise NotImplementedError(
+        #     "No implementation of shutdown present. Read the comments & code of client_socket.py.")
 
     def close(self):
         """Cleans up any internal state by at least destroying the instance of
