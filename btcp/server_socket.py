@@ -204,8 +204,6 @@ class BTCPServerSocket(BTCPSocket):
 
     def _established_segment_received(self, segment):
         """Helper method handling received segment in an established state
-
-        Currently solely for demonstration purposes.
         """
         logger.debug("_established_segment_received called")
         logger.info("Segment received in %s state",
@@ -220,17 +218,20 @@ class BTCPServerSocket(BTCPSocket):
         chunk = segment[HEADER_SIZE:HEADER_SIZE + datalen]
         # Pass data into receive buffer so that the application thread can
         # retrieve it.
-        try:
-            self._recvbuf.put_nowait(chunk)
-        except queue.Full:
-            # Data gets dropped if the receive buffer is full. You need to
-            # ensure this doesn't happen by using window sizes and not
-            # acknowledging dropped data.
-            # Initially, while still developing other features,
-            # you can also just set the size limitation on the Queue
-            # much higher, or remove it altogether.
-            logger.critical("Data got dropped!")
-            logger.debug(chunk)
+        if (self.verify_checksum(segment)):
+            try:
+                self._recvbuf.put_nowait(chunk)
+            except queue.Full:
+                # Data gets dropped if the receive buffer is full. You need to
+                # ensure this doesn't happen by using window sizes and not
+                # acknowledging dropped data.
+                # Initially, while still developing other features,
+                # you can also just set the size limitation on the Queue
+                # much higher, or remove it altogether.
+                logger.critical("Data got dropped!")
+                logger.debug(chunk)
+        else:
+            logger.debug("checksum for segment failed")
 
     def lossy_layer_tick(self):
         """Called by the lossy layer whenever no segment has arrived for

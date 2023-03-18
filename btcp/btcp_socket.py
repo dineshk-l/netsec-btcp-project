@@ -68,9 +68,40 @@ class BTCPSocket:
         segment, the checksum field in the header should be set to 0x0000, and
         then the resulting checksum should be put in its place.
         """
+        # assumes even number of bytes
+        # checksum to verify the integrity of the segments (part of reliability) and for incremental passing of the next test case in the framework with "spurious bit flips"
+        # A segment with invalid checksum should be ignored. this verification should be taken care of by the function(s) thats going to use the checksum - eg lossy_layer_segment_received()
         logger.debug("in_cksum() called")
-        raise NotImplementedError(
-            "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
+        logger.info("Psueudo header including IP not taken into account")
+
+        # If the segment length is odd, pad it with a zero byte
+        if len(segment) % 2 == 1:
+            segment += b'\x00'
+
+        # Calculate the sum of all 16-bit words in the segment
+        total = 0
+        for i in range(0, len(segment), 2):
+            # each byte object is 8 bits
+            # to get a 16 bit (2 byte) representation of their addition
+            total += (segment[i] << 8) + segment[i+1]
+
+        # Fold the carry bits into the sum
+        while (total >> 16) > 0:
+            # the first step is to isolate the 16 MSB and add the carry bits to them. if its still overflows, continue the process
+            total = (total & 0xFFFF) + (total >> 16)
+
+        # Take the one's complement of the sum
+        checksum = ~total & 0xFFFF
+
+        # Pack the checksum into a 2-byte binary string in network byte order
+        packed_checksum = struct.pack('!H', checksum)
+
+        logger.debug(
+            "in_checsum() finished. Checksum calculated: ", packed_checksum)
+
+        return packed_checksum
+        # raise NotImplementedError(
+        #     "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
 
     @staticmethod
     def verify_checksum(segment):
@@ -79,9 +110,15 @@ class BTCPSocket:
         Mind that you change *what* signals that to the correct value(s).
         """
         logger.debug("verify_cksum() called")
-        raise NotImplementedError(
-            "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
-        return BTCPSocket.in_cksum(segment) == 0xABCD
+        # save checksum received into temporary variable
+        checksum_to_verify = segment[8:10]
+        # set checksum field to 0x0000 to prepare for its recomputation
+        segment[8:10] = struct.pack("!H", 0x0000)
+        # recompute checksum
+        checksum_recomputed = BTCPSocket.in_cksum()
+        # raise NotImplementedError(
+        #     "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
+        return checksum_recomputed == checksum_to_verify
 
     @staticmethod
     def build_segment_header(seqnum, acknum,
@@ -122,6 +159,7 @@ class BTCPSocket:
         than make a separate method for every individual field.
         """
         logger.debug("unpack_segment_header() called")
+        # where 'unpacked' is (seqnum, acknum, flag_byte, window, length, checksum)
         unpacked = struct.unpack("!HHBBHH", header)
         # raise NotImplementedError( "No implementation of unpack_segment_header present. Read the comments & code of btcp_socket.py. You should really implement the packing / unpacking of the header into field values before doing anything else!")
         logger.debug("unpack_segment_header() done")
