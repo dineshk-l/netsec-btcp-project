@@ -74,9 +74,9 @@ class BTCPSocket:
         logger.debug("in_cksum() called")
         logger.info("Psueudo header including IP not taken into account")
 
-        # If the segment length is odd, pad it with a zero byte
-        if len(segment) % 2 == 1:
-            segment += b'\x00'
+        # # If the segment length is odd, pad it with a zero byte (but we ignore this because it was made even for us)
+        # if len(segment) % 2 == 1:
+        #     segment += b'\x00'
 
         # Calculate the sum of all 16-bit words in the segment
         total = 0
@@ -113,9 +113,11 @@ class BTCPSocket:
         # save checksum received into temporary variable
         checksum_to_verify = segment[8:10]
         # set checksum field to 0x0000 to prepare for its recomputation
-        segment[8:10] = struct.pack("!H", 0x0000)
+        segment_checksum_zeroed = segment[:8] + \
+            struct.pack("!H", 0x0000) + segment[10:]
         # recompute checksum
-        checksum_recomputed = BTCPSocket.in_cksum()
+        checksum_recomputed = BTCPSocket.in_cksum(
+            segment_checksum_zeroed)  # returns packed
         # raise NotImplementedError(
         #     "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
         return checksum_recomputed == checksum_to_verify
@@ -163,4 +165,5 @@ class BTCPSocket:
         unpacked = struct.unpack("!HHBBHH", header)
         # raise NotImplementedError( "No implementation of unpack_segment_header present. Read the comments & code of btcp_socket.py. You should really implement the packing / unpacking of the header into field values before doing anything else!")
         logger.debug("unpack_segment_header() done")
+        # (seqnum, acknum, flag_byte, window, length, checksum)
         return unpacked

@@ -5,7 +5,7 @@ from btcp.constants import *
 import queue
 import logging
 import time
-
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,8 @@ class BTCPClientSocket(BTCPSocket):
         You can extend this method if you need additional attributes to be
         initialized, but do *not* call connect from here.
         """
+        # we have window, timeout and state from btcp socket
+
         logger.debug("__init__ called")
         super().__init__(window, timeout)
         self._lossy_layer = LossyLayer(
@@ -72,7 +74,7 @@ class BTCPClientSocket(BTCPSocket):
             - checksum verification (and deciding what to do if it fails)
             - receiving syn/ack during handshake
             - receiving ack and registering the corresponding segment as being
-              acknowledged
+              acknowledged *
             - receiving fin/ack during termination
             - any other handling of the header received from the server
 
@@ -104,9 +106,94 @@ class BTCPClientSocket(BTCPSocket):
         construction can be used; just make sure to check the same variable in
         each elif.
         """
-        logger.debug("lossy_layer_segment_received called")
-        raise NotImplementedError(
-            "No implementation of lossy_layer_segment_received present. Read the comments & code of client_socket.py.")
+        logger.debug("lossy_layer_segment_received called (at client side)")
+        logger.debug(segment)
+
+        # match ... case is available since Python 3.10
+        # Note, this is *not* the same as a "switch" statement from other
+        # languages. There is no "fallthrough" behaviour, so no breaks.
+        # match self._state:
+        #     case BTCPStates.CLOSED:
+        #         self._closed_segment_received(segment)
+        #     case BTCPStates.CLOSING:
+        #         self._closing_segment_received(segment)
+        #     case BTCPStates.ESTABLISHED:
+        self._established_segment_received(segment)
+        # case _:
+        #     self._other_segment_received(segment)
+
+        # raise NotImplementedError(
+        #     "No implementation of lossy_layer_segment_received present. Read the comments & code of client_socket.py.")
+
+    def _rdt_send(self):
+        # if timer has run out then retransmit the packets in the window and start timer for the oldest unacknowledged packet again
+
+        logger.debug("Getting chunk from buffer.")
+
+        # size_old = self._sendbuf.qsize()
+
+        chunk = self._sendbuf.get_nowait()
+
+        # logger.info("Sending segment: {}  Queue Size: {}  Elements removed: {}".format(
+        #     self.unpack_segment_header(segment), self._sendbuf.qsize(), size_old-self._sendbuf.qsize()))
+
+        datalen = len(chunk)
+        logger.debug("Got chunk with lenght %i:",
+                     datalen)
+        logger.debug(chunk)
+        if datalen < PAYLOAD_SIZE:
+            logger.debug("Padding chunk to full size")
+            chunk = chunk + b'\x00' * (PAYLOAD_SIZE - datalen)
+        logger.debug("Building segment from chunk.")
+
+        # START MY CODE
+        segment = (self.build_segment_header(seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen)
+                   + chunk)  # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
+        segment = (self.build_segment_header(seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen, checksum=self.in_cksum(segment))
+                   + chunk)  # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
+        self._sliding_retransmission_window[self._next_sequence_number %
+                                            self._window] = segment
+        if (self._send_base == self._next_sequence_number):
+            self._start_time = time.time()  # start timer if the first packet in window sent
+        self._next_sequence_number += 1
+        logger.info("Sending segment.")
+        self._lossy_layer.send_segment(segment)
+
+    def _established_segment_received(self, segment):
+        """Helper method handling received segment in an established state
+        """
+        logger.debug("_established_segment_received called")
+        logger.info("Segment received in %s state",
+                    self._state)
+        header = segment[:10]  # because the header is 10 bytes
+
+        (seqnum, acknum, flag_byte, window, datalen,
+         checksum) = BTCPSocket.unpack_segment_header(header)
+
+        # datalen, = struct.unpack("!H", segment[6:8])
+        # Slice data from incoming segment.
+        chunk = segment[HEADER_SIZE:HEADER_SIZE + datalen]
+        # Pass data into receive buffer so that the application thread can
+        # retrieve it.
+        if (self.verify_checksum(segment)):  # not corrupt = true
+            logger.debug("checksum verified")
+            logger.debug(chunk)
+            if (self._send_base == acknum):  # is it ACK of expected packet?
+                self._sliding_retransmission_window[self._send_base %
+                                                    self._window] = None
+                self._send_base += 1
+                self._start_time = time.time()
+            # seqnum, acknum, ack_set=False
+            # here can continue to process segment eg.for acknowledgements
+        else:
+            logger.debug("checksum for segment failed")
+
+    def _timeout_handler(self):
+        for i in range(self._send_base, self._next_sequence_number):
+            segment = self._sliding_retransmission_window[i % self._window]
+            if segment is not None:
+                self._lossy_layer.send_segment(segment)
+        self._start_time = time.time()
 
     def lossy_layer_tick(self):
         """Called by the lossy layer whenever no segment has arrived for
@@ -140,28 +227,32 @@ class BTCPClientSocket(BTCPSocket):
         # is available.
         # You should be checking whether there's space in the window as well,
         # and storing the segments for retransmission somewhere.
+
+        # here the sending should be done
+
+        # emptying queue
         try:
             while True:
-                if (self._state == BTCPStates.ESTABLISHED):  # note todo added
-                    logger.debug("Getting chunk from buffer.")
-                    chunk = self._sendbuf.get_nowait()
-                    datalen = len(chunk)
-                    logger.debug("Got chunk with lenght %i:",
-                                 datalen)
-                    logger.debug(chunk)
-                    if datalen < PAYLOAD_SIZE:
-                        logger.debug("Padding chunk to full size")
-                        chunk = chunk + b'\x00' * (PAYLOAD_SIZE - datalen)
-                    logger.debug("Building segment from chunk.")
-                    segment = (self.build_segment_header(0, 0, length=datalen)  # checksum is defaulted to 0 before sending
-                               + chunk)
-                    # put in checksum
-                    checksum = self.in_cksum(segment)
-                    segment[8:10] = checksum
-                    logger.info("Sending segment.")
-                    self._lossy_layer.send_segment(segment)
+                if (self._state == BTCPStates.ESTABLISHED):
+                    if (self._next_sequence_number < self._send_base+self._window):  # for s.send(data)
+                        self._rdt_send(self)
+                        # check after sending every packet
+                        # assuming the start_time is adjusted as ACKs arrive
+                        if (time.time() - self._start_time > GBN_ACK_TIMEOUT):
+                            self._timeout_handler(self)
+                    else:
+                        logger.debug("window is full")
+                        break
         except queue.Empty:
-            logger.info("No (more) data was available for sending right now.")
+            logger.info(
+                "No (more) data was available for sending right now.")
+            # check for timeout
+        if (time.time() - self._start_time > GBN_ACK_TIMEOUT):
+            self._timeout_handler(self)
+
+            # check for  timeout
+
+        # timeout?
 
     ###########################################################################
     ### You're also building the socket API for the applications to use.    ###
@@ -213,15 +304,17 @@ class BTCPClientSocket(BTCPSocket):
         this project.
         """
 
-        # try:
-
         logger.debug("Trying to connect")
-        # self.send(self,BTCPSignals.CONNECT)
 
         self._state = BTCPStates.ESTABLISHED
 
-        # except aborted:
-        #     logger.info("No (more) data was available for sending right now.")
+        logger.debug(
+            "setting time, window, base, sequence and acknowledgement numbers")
+        # self._acknum = -1  # todo when first packet received, this will be initialized to the sequence number of the first packet it expects to receive
+        self._send_base = 0  # oldest unacknowledged packet
+        self._next_sequence_number = 0  # smallest unused sequence number but not yet sent
+        self._sliding_retransmission_window = [None] * self._window
+        self._start_time = None
 
         logger.debug("connect called")
         # raise NotImplementedError(

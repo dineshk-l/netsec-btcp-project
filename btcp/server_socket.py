@@ -59,8 +59,8 @@ class BTCPServerSocket(BTCPSocket):
         # size negotiation should solve.
         # For this rudimentary implementation, we simply hope receive manages
         # to be faster than send.
-        self._recvbuf = queue.Queue(maxsize=1000)
-        logger.info("Socket initialized with recvbuf size 1000")
+        self._recvbuf = queue.Queue(maxsize=1000000)
+        logger.info("Socket initialized with recvbuf size 1000000")
 
     ###########################################################################
     ### The following section is the interface between the transport layer  ###
@@ -221,6 +221,7 @@ class BTCPServerSocket(BTCPSocket):
         if (self.verify_checksum(segment)):
             try:
                 self._recvbuf.put_nowait(chunk)
+                logger.debug("checksum verified")
             except queue.Full:
                 # Data gets dropped if the receive buffer is full. You need to
                 # ensure this doesn't happen by using window sizes and not
