@@ -51,7 +51,8 @@ class BTCPClientSocket(BTCPSocket):
         # The data buffer used by send() to send data from the application
         # thread into the network thread. Bounded in size.
         self._sendbuf = queue.Queue(maxsize=1000)  # in flight?
-        self._signalbuf = queue.Queue(maxsize=1)  # in flight?
+        # self._signalbuf = queue.Queue(maxsize=1)  # in flight?
+        self._acknum = 1
         logger.info("Socket initialized with sendbuf size 1000")
 
     ###########################################################################
@@ -147,10 +148,12 @@ class BTCPClientSocket(BTCPSocket):
         logger.debug("Building segment from chunk.")
 
         # START MY CODE
-        segment = (self.build_segment_header(seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen)
-                   + chunk)  # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
-        segment = (self.build_segment_header(seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen, checksum=self.in_cksum(segment))
-                   + chunk)  # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
+        # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
+        segment = self.build_segment_header(
+            seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen, checksum=0) + chunk
+
+        segment = self.build_segment_header(seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen, checksum=self.in_cksum(
+            segment)) + chunk  # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
         self._sliding_retransmission_window[self._next_sequence_number %
                                             self._window] = segment
         if (self._send_base == self._next_sequence_number):
@@ -235,7 +238,7 @@ class BTCPClientSocket(BTCPSocket):
             while True:
                 if (self._state == BTCPStates.ESTABLISHED):
                     if (self._next_sequence_number < self._send_base+self._window):  # for s.send(data)
-                        self._rdt_send(self)
+                        self._rdt_send()
                         # check after sending every packet
                         # assuming the start_time is adjusted as ACKs arrive
                         if (time.time() - self._start_time > GBN_ACK_TIMEOUT):

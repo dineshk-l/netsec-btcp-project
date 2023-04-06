@@ -93,13 +93,13 @@ class BTCPSocket:
         # Take the one's complement of the sum
         checksum = ~total & 0xFFFF
 
-        # Pack the checksum into a 2-byte binary string in network byte order
-        packed_checksum = struct.pack('!H', checksum)
+        # # Pack the checksum into a 2-byte binary string in network byte order
+        # packed_checksum = struct.pack('!H', checksum)
 
         logger.debug(
-            "in_checsum() finished. Checksum calculated: ", packed_checksum)
+            "in_checsum() finished. Checksum calculated: ", checksum)
 
-        return packed_checksum
+        return checksum
         # raise NotImplementedError(
         #     "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
 
