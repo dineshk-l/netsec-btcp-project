@@ -97,7 +97,7 @@ class BTCPSocket:
         # packed_checksum = struct.pack('!H', checksum)
 
         logger.debug(
-            "in_checsum() finished. Checksum calculated: ", checksum)
+            f"in_checksum() finished. Checksum calculated: {checksum}")
 
         return checksum
         # raise NotImplementedError(
@@ -111,15 +111,18 @@ class BTCPSocket:
         """
         logger.debug("verify_cksum() called")
         # save checksum received into temporary variable
-        checksum_to_verify = segment[8:10]
+        (seqnum, acknum, syn_set, ack_set, fin_set, window, length,
+         checksum_to_verify) = BTCPSocket.unpack_segment_header(segment[:10])
         # set checksum field to 0x0000 to prepare for its recomputation
-        segment_checksum_zeroed = segment[:8] + \
-            struct.pack("!H", 0x0000) + segment[10:]
+        segment_checksum_zeroed = BTCPSocket.build_segment_header(
+            seqnum=seqnum, acknum=acknum, syn_set=syn_set, ack_set=ack_set, fin_set=fin_set, window=window, length=length, checksum=0)+segment[10:]
         # recompute checksum
-        checksum_recomputed = BTCPSocket.in_cksum(
-            segment_checksum_zeroed)  # returns packed
+        header_checksum_recomputed = BTCPSocket.build_segment_header(
+            seqnum=seqnum, acknum=acknum, syn_set=syn_set, ack_set=ack_set, fin_set=fin_set, window=window, length=length, checksum=BTCPSocket.in_cksum(segment_checksum_zeroed))
         # raise NotImplementedError(
         #     "No implementation of in_cksum present. Read the comments & code of btcp_socket.py.")
+        (seqnum, acknum, syn_set, ack_set, fin_set, window, length,
+         checksum_recomputed) = BTCPSocket.unpack_segment_header(header_checksum_recomputed)
         return checksum_recomputed == checksum_to_verify
 
     @staticmethod
@@ -162,8 +165,13 @@ class BTCPSocket:
         """
         logger.debug("unpack_segment_header() called")
         # where 'unpacked' is (seqnum, acknum, flag_byte, window, length, checksum)
-        unpacked = struct.unpack("!HHBBHH", header)
+        (seqnum, acknum, flag_byte, window, length,
+         checksum) = struct.unpack("!HHBBHH", header)
+
+        syn_set = bool((flag_byte & 0b00000100) >> 2)
+        ack_set = bool((flag_byte & 0b00000010) >> 1)
+        fin_set = bool(flag_byte & 0b00000001)
         # raise NotImplementedError( "No implementation of unpack_segment_header present. Read the comments & code of btcp_socket.py. You should really implement the packing / unpacking of the header into field values before doing anything else!")
         logger.debug("unpack_segment_header() done")
         # (seqnum, acknum, flag_byte, window, length, checksum)
-        return unpacked
+        return (seqnum, acknum, syn_set, ack_set, fin_set, window, length, checksum)
