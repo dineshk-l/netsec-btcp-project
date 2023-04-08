@@ -49,7 +49,7 @@ class BTCPServerSocket(BTCPSocket):
         initialized, but do *not* call accept from here.
         """
         logger.debug("__init__() called.")
-        super().__init__(window, timeout)  # also has state
+        super().__init__(window, timeout)  # HAS STATE,WINDOW,TIMEIt
         self._lossy_layer = LossyLayer(
             self, SERVER_IP, SERVER_PORT, CLIENT_IP, CLIENT_PORT)
 
@@ -63,6 +63,7 @@ class BTCPServerSocket(BTCPSocket):
         self._seqnum = 0  # arbitrary in this one way communication
         self._expected_seqnum = 1
         self._sliding_retransmission_window = [None] * self._window
+        self._example_timer = -1
         logger.info("Socket initialized with recvbuf size 1000")
 
     ###########################################################################
@@ -125,6 +126,8 @@ class BTCPServerSocket(BTCPSocket):
         logger.debug("lossy_layer_segment_received called")
         logger.debug(segment)
 
+        self._start_example_timer()
+
         # If the segment is corrupted, we decided to drop it
         if (not BTCPSocket.verify_checksum(segment)):
             logger.debug("Failed to verify the checksum.")
@@ -162,7 +165,7 @@ class BTCPServerSocket(BTCPSocket):
         else:
             self._accepting_segment_received(segment)
 
-        # self._expire_timers()  # reset timers?
+        self._expire_timers()  # reset timers?
 
         return
 
@@ -231,7 +234,7 @@ class BTCPServerSocket(BTCPSocket):
             chunk_to_be_sent = b'\x00' * PAYLOAD_SIZE
             # seqnum, acknum,syn_set=False, ack_set=False, fin_set=False,window=0x01, length=0, checksum=0
             segment_to_be_checksummed = BTCPSocket.build_segment_header(seqnum=self._seqnum, acknum=self._expected_seqnum, syn_set=False,
-                                                                        ack_set=True, fin_set=False, window=self._window, length=PAYLOAD_SIZE, checksum=0) + chunk
+                                                                        ack_set=True, fin_set=False, window=self._window, length=PAYLOAD_SIZE, checksum=0) + chunk_to_be_sent
             segment_to_be_sent = BTCPSocket.build_segment_header(seqnum=self._seqnum, acknum=self._expected_seqnum, syn_set=False,
                                                                  ack_set=True, fin_set=False, window=self._window, length=PAYLOAD_SIZE, checksum=BTCPSocket.in_cksum(segment_to_be_checksummed)) + chunk_to_be_sent
             self._lossy_layer.send_segment(segment_to_be_sent)
@@ -239,16 +242,16 @@ class BTCPServerSocket(BTCPSocket):
             # if (datalen):
             self._seqnum += 1  # arbitrry
             self._expected_seqnum += 1
-        else:
-            logger.debug("sending ACK for last received ")
+        elif (seqnum <= self._expected_seqnum-1):
+            logger.debug("sending (duplicate!)ACK for last received ")
             chunk_to_be_sent = b'\x00' * PAYLOAD_SIZE
             # seqnum, acknum,syn_set=False, ack_set=False, fin_set=False,window=0x01, length=0, checksum=0
-            segment_to_be_checksummed = BTCPSocket.build_segment_header(seqnum=self._seqnum, acknum=self._expected_seqnum-1, syn_set=False,
+            segment_to_be_checksummed = BTCPSocket.build_segment_header(seqnum=self._seqnum, acknum=seqnum, syn_set=False,
                                                                         ack_set=True, fin_set=False, window=self._window, length=PAYLOAD_SIZE, checksum=0) + chunk_to_be_sent
-            segment_to_be_sent = BTCPSocket.build_segment_header(seqnum=self._seqnum, acknum=self._expected_seqnum-1, syn_set=False,
+            segment_to_be_sent = BTCPSocket.build_segment_header(seqnum=self._seqnum, acknum=seqnum, syn_set=False,
                                                                  ack_set=True, fin_set=False, window=self._window, length=PAYLOAD_SIZE, checksum=BTCPSocket.in_cksum(segment_to_be_checksummed)) + chunk_to_be_sent
             self._lossy_layer.send_segment(segment_to_be_sent)
-            self._seqnum += 1  # arbitrry
+            # self._seqnum += 1  # arbitrry
             logger.debug("Sent segment to lossy layer")
 
     def _closed_segment_received(self, segment):
@@ -448,8 +451,8 @@ class BTCPServerSocket(BTCPSocket):
         """
         logger.debug("lossy_layer_tick called")
 
-        # self._start_example_timer()
-        # self._expire_timers()
+        self._start_example_timer()
+        self._expire_timers()
 
         # raise NotImplementedError(
         #     "No implementation of lossy_layer_tick present. Read the comments & code of server_socket.py.")
@@ -460,23 +463,23 @@ class BTCPServerSocket(BTCPSocket):
     # and lossy_layer_segment_received, for reasons explained in
     # lossy_layer_tick.
 
-    # def _start_example_timer(self):
-    #     if not self._example_timer:
-    #         logger.debug("Starting example timer.")
-    #         # Time in *nano*seconds, not milli- or microseconds.
-    #         # Using a monotonic clock ensures independence of weird stuff
-    #         # like leap seconds and timezone changes.
-    #         self._example_timer = time.monotonic_ns()
-    #     else:
-    #         logger.debug("Example timer already running.")
+    def _start_example_timer(self):
+        if not self._example_timer:
+            logger.debug("Starting example timer.")
+            # Time in *nano*seconds, not milli- or microseconds.
+            # Using a monotonic clock ensures independence of weird stuff
+            # like leap seconds and timezone changes.
+            self._example_timer = time.monotonic_ns()
+        else:
+            logger.debug("Example timer already running.")
 
-    # def _expire_timers(self):
-    #     curtime = time.monotonic_ns()
-    #     if curtime - self._example_timer > self._timeout * 1_000_000:
-    #         logger.debug("Example timer elapsed.")
-    #         self._example_timer = None
-    #     else:
-    #         logger.debug("Example timer not yet elapsed.")
+    def _expire_timers(self):
+        curtime = time.monotonic_ns()
+        if curtime - self._example_timer > self._timeout * 1_000_000:
+            logger.debug("Example timer elapsed.")
+            self._example_timer = None
+        else:
+            logger.debug("Example timer not yet elapsed.")
 
     ###########################################################################
     ### You're also building the socket API for the applications to use.    ###

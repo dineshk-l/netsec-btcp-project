@@ -147,23 +147,34 @@ class BTCPClientSocket(BTCPSocket):
             logger.debug("ACK packet checksum verified")
             logger.debug(chunk)
             if (ack_set and self._send_base == acknum-1):  # is it ACK of expected packet?
-                self._sliding_retransmission_window[self._send_base %
-                                                    self._window] = None
+                self._sliding_retransmission_window[self._send_base % self._window] = (self._sliding_retransmission_window[self._send_base %
+                                                                                                                           self._window][0], True)
                 self._send_base += 1
                 self._start_time = time.time()
                 logger.debug(f"ACK{acknum-1} received")
+            # else:
+            #     logger.debug(f"duplicate ACK{acknum-1} received")
             # seqnum, acknum, ack_set=False
             # here can continue to process segment eg.for acknowledgements
-            else:
-                logger.debug(f"ACK{acknum-1} not received")
+            # else:
+            #     logger.debug(f"ACK{acknum-1} not received")
         else:
             logger.debug("checksum for segment failed")
 
     def _timeout_handler(self):
+        # all_acks_received = True
         for i in range(self._send_base, self._next_sequence_number):
-            segment = self._sliding_retransmission_window[i % self._window]
-            if segment is not None:
-                self._lossy_layer.send_segment(segment)
+            window = self._sliding_retransmission_window[i % self._window]
+            if (window is not None):
+                if (not self._sliding_retransmission_window[i % self._window][1]):
+                    logger.debug(f"ACK{i} not received so retransmitting...")
+                    # all_acks_received = False
+                    # for i in range(self._send_base, self._next_sequence_number):
+                    segment = self._sliding_retransmission_window[i %
+                                                                  self._window][0]
+                    self._lossy_layer.send_segment(segment)
+                    # break
+
         self._start_time = time.time()
 
     def _rdt_send(self):
@@ -195,7 +206,8 @@ class BTCPClientSocket(BTCPSocket):
         segment = self.build_segment_header(seqnum=self._next_sequence_number, acknum=self._acknum, window=self._window, length=datalen, checksum=self.in_cksum(
             segment)) + chunk  # seqnum, acknum, syn_set=False, ack_set=False, fin_set=False, window=0x01, length=0, checksum=0)# checksum is defaulted to 0 before sending
         self._sliding_retransmission_window[self._next_sequence_number %
-                                            self._window] = segment
+                                            self._window] = (segment, False)
+
         if (self._send_base == self._next_sequence_number):
             self._start_time = time.time()  # start timer if the first packet in window sent
         self._next_sequence_number += 1
@@ -242,20 +254,12 @@ class BTCPClientSocket(BTCPSocket):
         try:
             if (self._state == BTCPStates.ESTABLISHED):
                 # for s.send(data)
-                while self._next_sequence_number < self._send_base+self._window:
+                while self._next_sequence_number < self._send_base+self._window:  # window send
                     self._rdt_send()
                 # check after sending every packet
                 # assuming the start_time is adjusted as ACKs arrive
 
-                # else:
-                #     # now wait for acknowledgements?
-                #     logger.debug("window is full")
-
-                # logger.debug(
-                #     f"time ack not received: {time.time() - self._start_time}")
-
                 if ((time.time() - self._start_time) > GBN_ACK_TIMEOUT):
-                    logger.debug("timeout")
                     self._timeout_handler()
         except queue.Empty:
             logger.info(
@@ -398,7 +402,7 @@ class BTCPClientSocket(BTCPSocket):
         logger.debug("shutdown called")
         # you can use a (long!) timeout with no segments being received at all as an indication that the client is done sending.
         while time.time() - self._time_last_segment_received < SHUTDOWN_TIMEOUT:
-            pass
+            time.sleep(0.1)
             # raise NotImplementedError(
             #     "No implementation of shutdown present. Read the comments & code of client_socket.py.")
 
