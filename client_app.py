@@ -19,6 +19,17 @@ from large_input import TEST_BYTES_85MIB
 
 
 logger = logging.getLogger(__name__)
+# Create a file handler
+handler = logging.FileHandler('combined_logs.txt')
+
+# Set the formatter
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(handler)
+
 
 
 def btcp_file_transfer_client():

@@ -4,6 +4,16 @@ from enum import IntEnum
 
 
 logger = logging.getLogger(__name__)
+# Create a file handler
+handler = logging.FileHandler('combined_logs.txt')
+
+# Set the formatter
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(handler)
 
 
 class BTCPStates(IntEnum):

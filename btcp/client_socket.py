@@ -8,6 +8,16 @@ import time
 import random
 
 logger = logging.getLogger(__name__)
+# Create a file handler
+handler = logging.FileHandler('combined_logs.txt')
+
+# Set the formatter
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(handler)
 
 
 class BTCPClientSocket(BTCPSocket):
@@ -152,12 +162,13 @@ class BTCPClientSocket(BTCPSocket):
                 self._send_base += 1
                 self._start_time = time.time()
                 logger.debug(f"ACK{acknum-1} received")
-            # else:
-            #     logger.debug(f"duplicate ACK{acknum-1} received")
-            # seqnum, acknum, ack_set=False
-            # here can continue to process segment eg.for acknowledgements
-            # else:
-            #     logger.debug(f"ACK{acknum-1} not received")
+            # elif (ack_set and acknum-1 < self._send_base):
+                # else:
+                #     logger.debug(f"duplicate ACK{acknum-1} received")
+                # seqnum, acknum, ack_set=False
+                # here can continue to process segment eg.for acknowledgements
+                # else:
+                #     logger.debug(f"ACK{acknum-1} not received")
         else:
             logger.debug("checksum for segment failed")
 
@@ -208,10 +219,11 @@ class BTCPClientSocket(BTCPSocket):
         self._sliding_retransmission_window[self._next_sequence_number %
                                             self._window] = (segment, False)
 
-        if (self._send_base == self._next_sequence_number):
-            self._start_time = time.time()  # start timer if the first packet in window sent
+        # if (self._send_base == self._next_sequence_number):
+        #     self._start_time = time.time()  # start timer if the first packet in window sent
+        logger.info(f"Sending SEGMENT{self._next_sequence_number}")
         self._next_sequence_number += 1
-        logger.info("Sending segment.")
+
         self._lossy_layer.send_segment(segment)
 
     def lossy_layer_tick(self):
@@ -254,13 +266,13 @@ class BTCPClientSocket(BTCPSocket):
         try:
             if (self._state == BTCPStates.ESTABLISHED):
                 # for s.send(data)
+                if ((time.time() - self._start_time) > GBN_ACK_TIMEOUT):
+                    self._timeout_handler()
                 while self._next_sequence_number < self._send_base+self._window:  # window send
                     self._rdt_send()
                 # check after sending every packet
                 # assuming the start_time is adjusted as ACKs arrive
 
-                if ((time.time() - self._start_time) > GBN_ACK_TIMEOUT):
-                    self._timeout_handler()
         except queue.Empty:
             logger.info(
                 "No (more) data was available for sending right now.")
@@ -325,7 +337,7 @@ class BTCPClientSocket(BTCPSocket):
         self._send_base = 0  # oldest unacknowledged packet
         self._next_sequence_number = 0  # smallest unused sequence number but not yet sent
         self._sliding_retransmission_window = [None] * self._window
-        self._start_time = None
+        self._start_time = time.time()
 
         logger.debug("connect called")
         # raise NotImplementedError(

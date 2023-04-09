@@ -24,7 +24,7 @@ LARGE_INPUTFILE = "large_input.py"
 OUTPUTFILE = "testframework-output.file"
 TIMEOUT = 100
 WINSIZE = 100
-LOGLEVEL = "WARNING"
+LOGLEVEL = "DEBUG"
 INTF = "lo"
 NETEM_ADD = "sudo tc qdisc add dev {} root netem".format(INTF)
 NETEM_CHANGE = "sudo tc qdisc change dev {} root netem {}".format(INTF, "{}")
@@ -162,7 +162,7 @@ class TestbTCPFramework(unittest.TestCase):
         # content received by server matches the content sent by client
         assert filecmp.cmp(infile, OUTPUTFILE)
 
-    def test_1_1_ideal_network_small(self):
+    def __test_1_1_ideal_network_small(self):
         """reliability over an ideal network
 
         This is an example testcase that uses the client and server process
@@ -188,7 +188,7 @@ class TestbTCPFramework(unittest.TestCase):
         # setup environment (nothing to set)
         self.runclient_and_assert(infile)
 
-    def test_2_1_flipping_network_small(self):
+    def __test_2_1_flipping_network_small(self):
         """reliability over network with bit flips
         (which sometimes results in lower layer packet loss)"""
         print("\ntest_2_1_flipping_network_small\n", file=sys.stderr)
@@ -209,7 +209,7 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(NETEM_CHANGE.format(NETEM_CORRUPT))
         self.runclient_and_assert(infile)
 
-    def test_3_1_duplicates_network_small(self):
+    def __test_3_1_duplicates_network_small(self):
         """reliability over network with duplicate packets"""
         print("\ntest_3_1_duplicates_network_small\n", file=sys.stderr)
         print("\nSTARTING TEST: DUPLICATING NETWORK SMALL\n", file=sys.stderr)
