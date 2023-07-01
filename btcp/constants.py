@@ -33,3 +33,5 @@ SEGMENT_SIZE = HEADER_SIZE + PAYLOAD_SIZE
 
 GBN_ACK_TIMEOUT = 5  # in seconds?
 SHUTDOWN_TIMEOUT = 20  # in seconds?
+
+SEQ_ACK_MODULO = 65535  # 16 bits/2 bytes

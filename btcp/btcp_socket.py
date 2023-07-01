@@ -1,7 +1,7 @@
 import struct
 import logging
 from enum import IntEnum
-
+from btcp.constants import *
 
 logger = logging.getLogger(__name__)
 # Create a file handler

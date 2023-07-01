@@ -222,7 +222,7 @@ class BTCPClientSocket(BTCPSocket):
         # if (self._send_base == self._next_sequence_number):
         #     self._start_time = time.time()  # start timer if the first packet in window sent
         logger.info(f"Sending SEGMENT{self._next_sequence_number}")
-        self._next_sequence_number += 1
+        self._next_sequence_number = self._next_sequence_number + 1 % SEQ_ACK_MODULO
 
         self._lossy_layer.send_segment(segment)
 

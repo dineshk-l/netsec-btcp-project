@@ -162,7 +162,7 @@ class TestbTCPFramework(unittest.TestCase):
         # content received by server matches the content sent by client
         assert filecmp.cmp(infile, OUTPUTFILE)
 
-    def __test_1_1_ideal_network_small(self):
+    def test_1_1_ideal_network_small(self):
         """reliability over an ideal network
 
         This is an example testcase that uses the client and server process
@@ -188,7 +188,7 @@ class TestbTCPFramework(unittest.TestCase):
         # setup environment (nothing to set)
         self.runclient_and_assert(infile)
 
-    def __test_2_1_flipping_network_small(self):
+    def test_2_1_flipping_network_small(self):
         """reliability over network with bit flips
         (which sometimes results in lower layer packet loss)"""
         print("\ntest_2_1_flipping_network_small\n", file=sys.stderr)
@@ -209,7 +209,7 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(NETEM_CHANGE.format(NETEM_CORRUPT))
         self.runclient_and_assert(infile)
 
-    def __test_3_1_duplicates_network_small(self):
+    def test_3_1_duplicates_network_small(self):
         """reliability over network with duplicate packets"""
         print("\ntest_3_1_duplicates_network_small\n", file=sys.stderr)
         print("\nSTARTING TEST: DUPLICATING NETWORK SMALL\n", file=sys.stderr)
@@ -235,7 +235,7 @@ class TestbTCPFramework(unittest.TestCase):
         self._lossy_network(SMALL_INPUTFILE)
         print("\nFINISHED TEST: LOSSY NETWORK\n", file=sys.stderr)
 
-    def __test_4_2_lossy_network_large(self):
+    def test_4_2_lossy_network_large(self):
         """reliability over network with packet loss"""
         print("\ntest_4_2_lossy_network_large\n", file=sys.stderr)
         print("\nSTARTING TEST: LOSSY NETWORK LARGE\n", file=sys.stderr)
@@ -247,7 +247,7 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(NETEM_CHANGE.format(NETEM_LOSS))
         self.runclient_and_assert(infile)
 
-    def __test_5_1_reordering_network_small(self):
+    def test_5_1_reordering_network_small(self):
         """reliability over network with packet reordering"""
         print("\ntest_5_1_reordering_network_small\n", file=sys.stderr)
         print("\nSTARTING TEST: REORDERING NETWORK SMALL\n", file=sys.stderr)
@@ -266,7 +266,7 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(NETEM_CHANGE.format(NETEM_REORDER))
         self.runclient_and_assert(infile)
 
-    def __test_6_1_delayed_network_small(self):
+    def test_6_1_delayed_network_small(self):
         """reliability over network with delay relative to the timeout value"""
         print("\ntest_6_1_delayed_network_small\n", file=sys.stderr)
         print("\nSTARTING TEST: DELAYED NETWORK SMALL\n", file=sys.stderr)
@@ -285,7 +285,7 @@ class TestbTCPFramework(unittest.TestCase):
         run_command(NETEM_CHANGE.format(NETEM_DELAY))
         self.runclient_and_assert(infile)
 
-    def __test_7_1_allbad_network_small(self):
+    def test_7_1_allbad_network_small(self):
         """reliability over network with all problems: corruption, duplication,
         delay, loss, reordering"""
         print("\ntest_7_1_allbad_network_small\n", file=sys.stderr)

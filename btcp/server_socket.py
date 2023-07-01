@@ -254,8 +254,8 @@ class BTCPServerSocket(BTCPSocket):
             logger.debug("Sent segment to lossy layer")
             logger.debug(f"ACK{self._expected_seqnum} sent")
             # if (datalen):
-            self._seqnum += 1  # arbitrry
-            self._expected_seqnum += 1
+            self._seqnum += 1 % SEQ_ACK_MODULO  # arbitrry
+            self._expected_seqnum += 1 % SEQ_ACK_MODULO
         elif (seqnum < self._expected_seqnum-1):
             logger.debug("sending (duplicate!)ACK for last received ")
             chunk_to_be_sent = b'\x00' * PAYLOAD_SIZE
